@@ -1,7 +1,7 @@
 /* Pon arriba los ojos — service worker */
 const VERSION = "pon-v1";                       // súbelo (v2, v3…) al publicar cambios
 const CORE = [
-  "./","./index.html","./app.js","./content.js","./manifest.json",
+  "./","./index.html","./app.js","./content.js","./psalms.js","./manifest.json",
   "./icon-192.png","./icon-512.png","./apple-touch-icon.png","./favicon-32.png","./icon-maskable-512.png",
   "./pelayo.jpg"
 ];

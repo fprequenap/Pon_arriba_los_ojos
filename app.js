@@ -70,6 +70,21 @@ function daterow(dates, today){
 function markBtn(id){ return '<button class="btn'+(isMark(id)?' on':' gold')+'" data-mark="'+id+'">'+
   (isMark(id)?'★ Guardado':'☆ Marcador')+'</button>'; }
 
+/* psalms (Salterio Romano Trinitario · Torres Amat, Vulgata) */
+const PS = window.PSALMS || {};
+function psalmNum(salterio){ const m=(salterio||"").match(/Salmo\s*(\d+)/i); return m?m[1]:null; }
+function getPsalm(salterio){ const n=psalmNum(salterio); return n?PS[n]:null; }
+function psalmCard(p){
+  if(!p) return "";
+  return '<article class="card psalm">'+
+    '<div class="kicker">Salterio · Torres Amat (Vulgata)</div>'+
+    '<div class="eyebrow">Salmo '+esc(p.n)+(p.title?' — '+esc(p.title):'')+'</div>'+
+    (p.comment?'<div class="reglaref" style="margin:6px 0">'+esc(p.comment)+'</div>':'')+
+    '<div class="divider"></div>'+
+    '<div class="meditation psalmtext">'+p.verses.map(v=>"<p>"+esc(v)+"</p>").join("")+'</div>'+
+  '</article>';
+}
+
 /* treatise entry card */
 function entryCard(e, today, opts){
   opts=opts||{};
@@ -127,13 +142,15 @@ function renderHoy(){
         '<span class="pill">'+pass+'ª de 3 vueltas</span>'+
         '<span class="pill">Regla · Salterio · Meditación</span></div>';
 
+  if(VIEW.offset===0 && !isDone(tr.item.id)){
+    h += '<div class="reminder"><span style="font-size:1.4em">✛</span>'+
+         '<div class="txt"><b>Lectura de hoy</b> — aún no marcada como leída.</div></div>';
+  }
   if(!tr.exact){
     h += '<div class="reglaref" style="margin-bottom:10px">No hay meditación asignada a este día; se muestra la lectura más próxima del ciclo.</div>';
   }
   h += entryCard(tr.item, today, {showDates:true, markDone:true});
-  if(tr.item.salterio){
-    h += '<div class="salmo" style="margin:-6px 2px 18px">Salterio de hoy — '+esc(tr.item.salterio)+'</div>';
-  }
+  h += psalmCard(getPsalm(tr.item.salterio));
   h += ruleCard(rg.item, today, {showDates:true});
   h += '<div class="footnote">A. M. D. G. · «Pon arriba los ojos»</div>';
   h += '</div>';
@@ -144,8 +161,15 @@ function renderHoy(){
 function renderLector(){
   const sub = VIEW.sub || "tratado";
   let h = '<div class="view"><div class="seg">'+
-    seg("tratado","Tratado",sub)+seg("regla","Regla",sub)+seg("glosario","Glosario",sub)+'</div>';
-  if(sub==="tratado"){
+    seg("tratado","Tratado",sub)+seg("salterio","Salterio",sub)+seg("regla","Regla",sub)+seg("glosario","Glosario",sub)+'</div>';
+  if(sub==="salterio"){
+    h += '<div class="reglaref" style="margin-bottom:12px">Salterio Romano Trinitario · Torres Amat (Vulgata) · 150 salmos</div><div class="list">';
+    const nums=Object.keys(PS).sort((a,b)=>a-b);
+    nums.forEach(n=>{ const p=PS[n];
+      h += '<button data-psalm="'+n+'"><div class="chaphead">Salmo '+esc(n)+'</div><div>'+esc(p.title||"")+'</div></button>';
+    });
+    h += '</div>';
+  } else if(sub==="tratado"){
     B.books.forEach((bk,bi)=>{
       h += '<div class="booktitle">Libro '+esc(bk.n)+' — '+esc(bk.title)+'</div><div class="list">';
       bk.chapters.forEach((ch,ci)=>{
@@ -187,8 +211,16 @@ function renderChap(bi,ci){
          (e.rs?'<div class="reglaref">'+esc(e.rs)+'</div>':'')+
          '<div class="divider"></div>'+ medHTML(e.body)+
          '<div class="rowbtns">'+markBtn(e.id)+'</div></article>';
+    h += psalmCard(getPsalm(raw.salterio));
   });
   h+='</div>'; app.innerHTML=h; ctx.textContent="Tratado"; window.scrollTo(0,0);
+}
+function renderPsalm(n){
+  const p=PS[n]; if(!p){ setRoute("lector"); return; }
+  let h='<div class="view reader"><div class="navday"><button data-back="lector-salterio">‹ Salterio</button>'+
+        '<div class="lbl">Salmo '+esc(n)+'</div><span style="width:70px"></span></div>'+
+        psalmCard(p)+'</div>';
+  app.innerHTML=h; ctx.textContent="Salterio"; window.scrollTo(0,0);
 }
 function renderRegCh(ci){
   const ch=B.regla.chapters[ci];
@@ -212,6 +244,7 @@ function buildCorpus(){
   TRE.forEach(e=> CORPUS.push({id:e.id, where:"Tratado · Cap. "+e.roman, text:e.body.join(" "), kind:"t"}));
   REG.forEach(p=> CORPUS.push({id:p.id, where:"Regla · "+p.head, text:p.text.join(" "), kind:"r"}));
   B.glossary.forEach((g,i)=> CORPUS.push({id:"g"+i, where:"Glosario · "+g.term, text:g.def, kind:"g", term:g.term}));
+  Object.keys(PS).forEach(n=>{ const p=PS[n]; CORPUS.push({id:"p"+n, where:"Salterio · Salmo "+n, text:(p.title||"")+" "+p.verses.join(" "), kind:"p"}); });
   return CORPUS;
 }
 function norm(s){ return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
@@ -241,6 +274,7 @@ function renderBuscar(q){
 function openId(id){
   if(id[0]==="t"){ const e=TRE.find(x=>x.id===id); if(e){ openSingle(entryCard(e,null,{showDates:true})); } }
   else if(id[0]==="r"){ const p=REG.find(x=>x.id===id); if(p){ openSingle(ruleCard(p,null,{showDates:true})); } }
+  else if(id[0]==="p"){ renderPsalm(id.slice(1)); }
   else if(id[0]==="g"){ setRoute("lector"); VIEW.sub="glosario"; renderLector(); }
 }
 function openSingle(cardHTML){
@@ -275,6 +309,10 @@ function renderAjustes(){
         tbtn("auto","Auto",ST.theme)+tbtn("day","Claro",ST.theme)+tbtn("night","Oscuro",ST.theme)+'</div></div>'+
     '<div class="setrow"><div><div class="k">Tamaño de letra</div><div class="h">'+Math.round(ST.fs*100)+'%</div></div>'+
       '<div class="choices"><button data-fs="-">A−</button><button data-fs="0">A</button><button data-fs="+">A＋</button></div></div>'+
+    '<div class="setrow"><div><div class="k">Recordatorio diario</div><div class="h">Aviso al abrir en un día nuevo</div></div>'+
+      '<div class="choices">'+
+        '<button data-remind="off" class="'+(!ST.remind?'active':'')+'">No</button>'+
+        '<button data-remind="on" class="'+(ST.remind?'active':'')+'">Sí</button></div></div>'+
     '<div class="setrow"><div><div class="k">Lecturas marcadas leídas</div><div class="h">Progreso en «Hoy»</div></div>'+
       '<div class="k" style="color:var(--gold)">'+done+'</div></div>'+
   '</div>';
@@ -311,7 +349,7 @@ function setRoute(r){
 
 /* ---------- events ---------- */
 document.addEventListener("click", ev=>{
-  const t=ev.target.closest("[data-route],[data-day],[data-sub],[data-chap],[data-regch],[data-back],[data-mark],[data-done],[data-open],[data-unmark],[data-theme],[data-fs],[data-nota],[data-front]");
+  const t=ev.target.closest("[data-route],[data-day],[data-sub],[data-chap],[data-regch],[data-psalm],[data-back],[data-mark],[data-done],[data-open],[data-unmark],[data-theme],[data-fs],[data-nota],[data-front]");
   if(!t) return;
   const d=t.dataset;
   if(d.route){ setRoute(d.route); }
@@ -319,7 +357,12 @@ document.addEventListener("click", ev=>{
   else if(d.sub){ VIEW.sub=d.sub; renderLector(); }
   else if(d.chap){ const [bi,ci]=d.chap.split("_").map(Number); renderChap(bi,ci); }
   else if(d.regch!==undefined){ renderRegCh(parseInt(d.regch,10)); }
-  else if(d.back){ if(d.back==="lector-regla"){ VIEW.sub="regla"; setRoute("lector"); } else setRoute(d.back.replace("lector","lector")); }
+  else if(d.psalm){ renderPsalm(d.psalm); }
+  else if(d.back){
+    if(d.back==="lector-regla"){ VIEW.sub="regla"; setRoute("lector"); }
+    else if(d.back==="lector-salterio"){ VIEW.sub="salterio"; setRoute("lector"); }
+    else setRoute(d.back);
+  }
   else if(d.mark){ toggleMark(d.mark); t.classList.toggle("on"); t.classList.toggle("gold");
     t.textContent = isMark(d.mark)?"★ Guardado":"☆ Marcador"; }
   else if(d.done){ toggleDone(d.done); t.classList.toggle("on");
@@ -328,6 +371,13 @@ document.addEventListener("click", ev=>{
   else if(d.unmark){ toggleMark(d.unmark); renderMarcadores(); }
   else if(d.theme){ ST.theme=d.theme; save(); applyTheme(); renderAjustes(); }
   else if(d.fs){ if(d.fs==="0")ST.fs=1; else ST.fs=Math.min(1.6,Math.max(.8, ST.fs+(d.fs==="+"?.1:-.1))); ST.fs=Math.round(ST.fs*10)/10; save(); applyFs(); renderAjustes(); }
+  else if(d.remind){
+    ST.remind = (d.remind==="on"); save();
+    if(ST.remind && "Notification" in window && Notification.permission==="default"){
+      try{ Notification.requestPermission(); }catch(e){}
+    }
+    renderAjustes();
+  }
   else if(d.nota){ showText("Nota sobre la Regla incorporada", B.meta.notaRegla); }
   else if(d.front){ showFront(); }
 });
@@ -357,6 +407,27 @@ function showText(title, paras){
 /* ---------- boot ---------- */
 applyTheme(); applyFs();
 setRoute("hoy");
+
+/* splash: auto-dismiss + tap to skip */
+(function(){
+  const sp=$("#splash"); if(!sp) return;
+  const hide=()=>sp.classList.add("hide");
+  sp.addEventListener("click", hide);
+  setTimeout(hide, 1900);
+})();
+
+/* daily local reminder — best-effort, only while the app is opened.
+   Nota: un aviso programado con la app cerrada exige Web Push + backend
+   (en iOS, solo en PWA instalada, iOS 16.4+); un sitio estático no lo cubre. */
+(function(){
+  if(!ST.remind || !("Notification" in window) || Notification.permission!=="granted") return;
+  const key = new Date().toISOString().slice(0,10);
+  if(ST.lastNotify===key) return;
+  const t=resolve(TRE, TRE_IDX, {m:new Date().getMonth()+1, d:new Date().getDate()});
+  if(t.item && !isDone(t.item.id)){
+    try{ new Notification("Pon arriba los ojos", {body:"La lectura de hoy te espera.", icon:"icon-192.png"}); ST.lastNotify=key; save(); }catch(e){}
+  }
+})();
 
 /* ---------- service worker + auto-update ---------- */
 if("serviceWorker" in navigator){

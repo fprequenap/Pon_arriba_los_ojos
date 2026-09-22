@@ -151,9 +151,40 @@ h1{ font-size:1.9em } h2{ font-size:1.5em } h3{ font-size:1.2em }
   background:var(--indigo); color:#F4ECD8; padding:9px 16px; border-radius:999px; font-size:.8em;
   box-shadow:var(--shadow); z-index:40; opacity:0; pointer-events:none; transition:opacity .3s }
 .updated.show{ opacity:1 }
+
+/* splash */
+#splash{ position:fixed; inset:0; z-index:100; background:linear-gradient(180deg,#1B2A4A,#0A1020);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;
+  padding:calc(24px + var(--safeT)) 24px calc(24px + var(--safeB)); text-align:center;
+  transition:opacity .5s ease; }
+#splash.hide{ opacity:0; pointer-events:none; }
+#splash .frame{ width:min(58vw,230px); aspect-ratio:1; border-radius:16px; overflow:hidden;
+  border:2px solid #C9A24A; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+#splash .frame img{ width:100%; height:100%; object-fit:cover; object-position:top center; }
+#splash .st{ font-family:var(--display); font-weight:700; color:#F4ECD8; font-size:1.9em; margin-top:18px; line-height:1.05 }
+#splash .ss{ font-family:var(--display); font-style:italic; color:#C9A24A; font-size:1.05em }
+#splash .amdg{ color:rgba(201,162,74,.7); letter-spacing:.3em; font-size:.72em; margin-top:8px }
+
+/* psalm card */
+.card.psalm{ background:var(--surface2); }
+.psalmtext p{ margin:0 0 .5em; text-align:left; text-indent:0 }
+.psalmtext p:first-of-type::first-letter{ font-size:inherit; float:none; padding:0; color:inherit; font-family:inherit }
+.psalmtext{ font-size:.96em }
+
+/* daily reminder banner */
+.reminder{ display:flex; align-items:center; gap:12px; background:var(--surface2);
+  border:1px solid var(--gold-soft); border-left:4px solid var(--gold); border-radius:12px;
+  padding:12px 14px; margin-bottom:14px; font-size:.9em }
+.reminder .txt{ flex:1; color:var(--ink) } .reminder .txt b{ color:var(--gold) }
 </style>
 </head>
 <body>
+<div id="splash">
+  <div class="frame"><img src="pelayo.jpg" alt="Don Pelayo con la Cruz de la Victoria, Covadonga"></div>
+  <div class="st">Pon arriba los ojos</div>
+  <div class="ss">La Regla, la Lámpara y el Resto Fiel</div>
+  <div class="amdg">A. M. D. G.</div>
+</div>
 <header id="topbar">
   <div class="t">Pon arriba los ojos</div>
   <div class="s">La Regla, la Lámpara y el Resto Fiel</div>
@@ -183,6 +214,7 @@ h1{ font-size:1.9em } h2{ font-size:1.5em } h3{ font-size:1.2em }
 <div class="updated" id="toast">Nueva versión disponible…</div>
 
 <script src="content.js"></script>
+<script src="psalms.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
