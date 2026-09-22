@@ -349,7 +349,7 @@ function setRoute(r){
 
 /* ---------- events ---------- */
 document.addEventListener("click", ev=>{
-  const t=ev.target.closest("[data-route],[data-day],[data-sub],[data-chap],[data-regch],[data-psalm],[data-back],[data-mark],[data-done],[data-open],[data-unmark],[data-theme],[data-fs],[data-nota],[data-front]");
+  const t=ev.target.closest("[data-route],[data-day],[data-sub],[data-chap],[data-regch],[data-psalm],[data-back],[data-mark],[data-done],[data-open],[data-unmark],[data-theme],[data-fs],[data-remind],[data-nota],[data-front]");
   if(!t) return;
   const d=t.dataset;
   if(d.route){ setRoute(d.route); }
