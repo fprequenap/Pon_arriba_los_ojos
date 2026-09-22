@@ -309,7 +309,7 @@ function renderAjustes(){
         tbtn("auto","Auto",ST.theme)+tbtn("day","Claro",ST.theme)+tbtn("night","Oscuro",ST.theme)+'</div></div>'+
     '<div class="setrow"><div><div class="k">Tamaño de letra</div><div class="h">'+Math.round(ST.fs*100)+'%</div></div>'+
       '<div class="choices"><button data-fs="-">A−</button><button data-fs="0">A</button><button data-fs="+">A＋</button></div></div>'+
-    '<div class="setrow"><div><div class="k">Recordatorio diario</div><div class="h">Aviso al abrir en un día nuevo</div></div>'+
+    '<div class="setrow"><div><div class="k">Recordatorio diario</div><div class="h">'+esc(remindStatus())+'</div></div>'+
       '<div class="choices">'+
         '<button data-remind="off" class="'+(!ST.remind?'active':'')+'">No</button>'+
         '<button data-remind="on" class="'+(ST.remind?'active':'')+'">Sí</button></div></div>'+
@@ -325,6 +325,19 @@ function renderAjustes(){
   h+='</div>'; app.innerHTML=h; ctx.textContent="Ajustes";
 }
 function tbtn(v,l,cur){ return '<button data-theme="'+v+'" class="'+(cur===v?'active':'')+'">'+l+'</button>'; }
+function remindStatus(){
+  if(!ST.remind) return "Aviso al abrir en un día nuevo";
+  if(!("Notification" in window)) return "Activado dentro de la app (este navegador no admite avisos del sistema).";
+  const p=Notification.permission;
+  if(p==="granted") return "Activado. Verás la lectura del día al abrir la app.";
+  if(p==="denied") return "Activado en la app. Las notificaciones del sistema están bloqueadas en este navegador.";
+  return "Activado en la app. Concede el permiso para recibir también el aviso del sistema.";
+}
+function notifyTest(){
+  try{ if("Notification" in window && Notification.permission==="granted"){
+    new Notification("Pon arriba los ojos", {body:"Recordatorio activado."});
+  }}catch(e){}
+}
 
 /* ---------- theme / font apply ---------- */
 function applyTheme(){
@@ -374,8 +387,11 @@ document.addEventListener("click", ev=>{
   else if(d.remind){
     ST.remind = (d.remind==="on"); save();
     if(ST.remind && "Notification" in window && Notification.permission==="default"){
-      try{ Notification.requestPermission(); }catch(e){}
-    }
+      try{
+        const r = Notification.requestPermission(function(){ notifyTest(); renderAjustes(); });
+        if(r && typeof r.then==="function"){ r.then(function(){ notifyTest(); renderAjustes(); }); }
+      }catch(e){}
+    } else if(ST.remind){ notifyTest(); }
     renderAjustes();
   }
   else if(d.nota){ showText("Nota sobre la Regla incorporada", B.meta.notaRegla); }
