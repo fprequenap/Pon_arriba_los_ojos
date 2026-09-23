@@ -41,22 +41,48 @@ for i in range(N-1, regla_head, -1):
 # gloss_start now = topmost glossary line
 GLO=gloss_start
 
-# ---------- FRONT MATTER ----------
+# ---------- FRONT MATTER (robust: skip blank paragraphs) ----------
+first_book=next(i for i,t in enumerate(P) if is_book.match(t.strip()))
+front=[P[i].strip() for i in range(0, first_book) if P[i].strip()]
+
+def capname(s):
+    s=s.replace('©','').strip()
+    low={'de','del','la','las','los','y'}
+    out=[]
+    for w in s.split():
+        if w.lower() in low and out: out.append(w.lower())
+        elif w.isalpha(): out.append(w[:1].upper()+w[1:].lower())
+        else: out.append(w)
+    return '© '+' '.join(out)
+
+def find(pred, default=''):
+    for x in front:
+        if pred(x): return x
+    return default
+
+copy_raw = find(lambda x: x.startswith('©'))
+year_raw = find(lambda x: re.fullmatch(r'[mdclxvi]{2,}', x.lower()))
+amdg_raw = find(lambda x: x.upper()=='AMDG')
+nota_tit = find(lambda x: x.lower().startswith('nota sobre la regla'))
+dedic    = find(lambda x: x.startswith('A ') and 'Gambra' in x) or find(lambda x: x.startswith('A ') and len(x)>40)
+
 meta={
- 'title':P[0].strip(),
- 'subtitle':P[1].strip(),
- 'copyright':P[2].strip(),
- 'year':P[3].strip(),
- 'amdg':P[4].strip(),
- 'dedication':P[5].strip(),
+ 'title':front[0] if front else 'PON ARRIBA LOS OJOS',
+ 'subtitle':front[1] if len(front)>1 else '',
+ 'copyright':capname(copy_raw) if copy_raw else '© Francisco de Paula Requena Paredes',
+ 'year':year_raw.upper() if year_raw else 'MMXXVI',
+ 'amdg':amdg_raw or 'AMDG',
+ 'notaReglaTitulo':nota_tit or 'Nota sobre la Regla incorporada',
+ 'buyUrl':'https://amzn.eu/d/06RM5TL8',
+ 'email':'fprequenap@gmail.com',
 }
-# nota sobre la regla incorporada (idx 6 heading + following paras until 'Libro Primero')
+# nota paragraphs = those after the nota title, excluding front-page items
+skip={copy_raw, year_raw, amdg_raw, dedic, nota_tit, meta['title'], meta['subtitle']}
 nota=[]
-for i in range(7,59):
-    s=P[i].strip()
-    if is_book.match(s): break
-    if s: nota.append(s)
-meta['notaReglaTitulo']=P[6].strip()
+seen_tit=False
+for x in front:
+    if x==nota_tit: seen_tit=True; continue
+    if seen_tit and x not in skip: nota.append(x)
 meta['notaRegla']=nota
 
 # ---------- TREATISE ----------
@@ -125,31 +151,32 @@ for i in range(regla_head-6, regla_head):
         regla['dedic'].append(s)
 
 cur=None
-i=regla_head+1
 end=GLO if GLO else N
 def is_reglahdr(s):
     return bool(re.match(r'^(PRÓLOGO|CAP[IÍ]TULO)\b', s.upper()))
-while i < end:
+pending=None; last=None
+for i in range(regla_head+1, end):
     s=P[i].strip()
-    if not s or s=='* * *' or s.upper()=='CAPÍTULOS': i+=1; continue
+    if not s or s=='* * *' or s.upper()=='CAPÍTULOS': continue
+    if s.upper()=='APÉNDICE': break
+    if s.upper() in ('RESÚMEN','RESUMEN'):
+        cur={'head':'RESUMEN','title':'','portions':[],'extra':True}
+        regla['chapters'].append(cur); last=None; pending=None; continue
+    if cur is not None and cur.get('extra') and not cur['title'] and not cur['portions']:
+        cur['title']=s[0].upper()+s[1:]; continue
+    if tri_dot.match(s):
+        pending=dates_of(s); continue
     if is_reglahdr(s):
         mo=re.match(r'^(PR[ÓO]LOGO|CAP[IÍ]TULO\s+[A-ZÁÉÍÓÚ0-9]+)\.?\s*(.*)$', s, re.I)
-        head=mo.group(1).strip() if mo else s
-        title=mo.group(2).strip() if mo else ''
-        cur={'head':head,'title':title,'portions':[]}
-        regla['chapters'].append(cur); i+=1; continue
-    if tri_dot.match(s):
-        dts=dates_of(s); text=[]; j=i+1
-        while j<end:
-            t=P[j].strip()
-            if not t: j+=1; continue
-            if tri_dot.match(t) or is_reglahdr(t) or t=='* * *': break
-            text.append(t); j+=1
-        if cur is None:
-            cur={'head':'PRÓLOGO','title':'','portions':[]}; regla['chapters'].append(cur)
-        cur['portions'].append({'dates':dts,'text':text})
-        i=j; continue
-    i+=1
+        cur={'head':(mo.group(1) if mo else s).strip(),'title':(mo.group(2) if mo else '').strip(),'portions':[]}
+        regla['chapters'].append(cur); last=None; continue
+    if cur is None:
+        cur={'head':'PRÓLOGO','title':'','portions':[]}; regla['chapters'].append(cur)
+    if pending is not None:
+        last={'dates':pending,'text':[]}; cur['portions'].append(last); pending=None
+    if last is None:
+        last={'dates':[],'text':[]}; cur['portions'].append(last)
+    last['text'].append(s)
 
 # ---------- GLOSSARY ----------
 glos=[]

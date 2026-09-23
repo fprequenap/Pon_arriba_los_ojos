@@ -22,9 +22,19 @@ B.books.forEach((bk,bi)=> bk.chapters.forEach((ch,ci)=> ch.entries.forEach((e,ei
   TRE.push({id:"t"+bi+"_"+ci+"_"+ei, book:bk.n, bookTitle:bk.title, roman:ch.roman,
             chapTitle:ch.title, dates:e.dates, regla:e.regla, salterio:e.salterio, rs:e.rs, body:e.body});
 })));
-const REG = [];   // rule portions (flat, dated)
-B.regla.chapters.forEach((ch,ci)=> ch.portions.forEach((p,pi)=>{
-  REG.push({id:"r"+ci+"_"+pi, head:ch.head, title:ch.title, dates:p.dates, text:p.text});
+const REG = [];   // one item per dated day; may span several chapters
+const PORT2REG = {}; // any portion id -> its day group
+B.regla.chapters.forEach((ch,ci)=> !ch.extra && ch.portions.forEach((p,pi)=>{
+  const pid="r"+ci+"_"+pi;
+  let g = REG[REG.length-1];
+  if(p.dates.length || !g){
+    g={id:pid, head:ch.head, title:ch.title, dates:p.dates, blocks:[], text:[]};
+    REG.push(g);
+  }
+  const prevHead = g.blocks.length ? g.blocks[g.blocks.length-1].head : null;
+  g.blocks.push({head:ch.head, title:ch.title, text:p.text, newChap: pi===0 || (prevHead && prevHead!==ch.head)});
+  g.text = g.text.concat(p.text);
+  PORT2REG[pid]=g;
 }));
 
 /* date -> item index (first date that matches) */
@@ -57,7 +67,7 @@ function isMark(id){ return ST.marks.indexOf(id)>=0; }
 function toggleMark(id){ const i=ST.marks.indexOf(id); if(i>=0)ST.marks.splice(i,1); else ST.marks.unshift(id); save(); }
 function isDone(id){ return ST.done.indexOf(id)>=0; }
 function toggleDone(id){ const i=ST.done.indexOf(id); if(i>=0)ST.done.splice(i,1); else ST.done.push(id); save(); }
-function findById(id){ return TRE.find(x=>x.id===id) || REG.find(x=>x.id===id); }
+function findById(id){ return TRE.find(x=>x.id===id) || PORT2REG[id]; }
 
 /* ---------- render helpers ---------- */
 function medHTML(body){ return '<div class="meditation">'+body.map(p=>"<p>"+esc(p)+"</p>").join("")+"</div>"; }
@@ -102,15 +112,22 @@ function entryCard(e, today, opts){
     '</div>'+
   '</article>';
 }
-/* rule portion card */
+/* rule portion card (full text of the day, chapter headings interleaved) */
 function ruleCard(p, today, opts){
   opts=opts||{};
+  let body='';
+  p.blocks.forEach((b,bi)=>{
+    if(bi>0 && b.newChap){
+      body+='<div class="eyebrow" style="margin:14px 0 6px">'+esc(b.head)+(b.title?' — '+esc(b.title):'')+'</div>';
+    }
+    body+=b.text.map(t=>"<p>"+esc(t)+"</p>").join("");
+  });
   return '<article class="card rule">'+
     '<div class="kicker">Regla de San Benito</div>'+
     '<div class="eyebrow">'+esc(p.head)+(p.title?' — '+esc(p.title):'')+'</div>'+
     (opts.showDates? daterow(p.dates, today):'')+
     '<div class="divider"></div>'+
-    '<div class="meditation">'+p.text.map(t=>"<p>"+esc(t)+"</p>").join("")+'</div>'+
+    '<div class="meditation">'+body+'</div>'+
     '<div class="rowbtns">'+markBtn(p.id)+'</div>'+
   '</article>';
 }
@@ -231,7 +248,7 @@ function renderRegCh(ci){
     const id="r"+ci+"_"+pi;
     h+='<article class="card rule">'+daterow(p.dates)+'<div class="divider"></div>'+
        '<div class="meditation">'+p.text.map(t=>"<p>"+esc(t)+"</p>").join("")+'</div>'+
-       '<div class="rowbtns">'+markBtn(id)+'</div></article>';
+       '<div class="rowbtns">'+(PORT2REG[id]?markBtn(PORT2REG[id].id):'')+'</div></article>';
   });
   h+='</div>'; app.innerHTML=h; ctx.textContent="Regla de San Benito"; window.scrollTo(0,0);
 }
@@ -273,7 +290,7 @@ function renderBuscar(q){
 }
 function openId(id){
   if(id[0]==="t"){ const e=TRE.find(x=>x.id===id); if(e){ openSingle(entryCard(e,null,{showDates:true})); } }
-  else if(id[0]==="r"){ const p=REG.find(x=>x.id===id); if(p){ openSingle(ruleCard(p,null,{showDates:true})); } }
+  else if(id[0]==="r"){ const p=PORT2REG[id]; if(p){ openSingle(ruleCard(p,null,{showDates:true})); } }
   else if(id[0]==="p"){ renderPsalm(id.slice(1)); }
   else if(id[0]==="g"){ setRoute("lector"); VIEW.sub="glosario"; renderLector(); }
 }
@@ -319,8 +336,8 @@ function renderAjustes(){
   h+='<div class="card"><div class="eyebrow">Sobre la obra</div>'+
      '<p style="margin:.3em 0" class="reglaref">'+esc(B.meta.title)+' — '+esc(B.meta.subtitle)+'</p>'+
      '<p class="reglaref">'+esc(B.meta.copyright)+' · '+esc(B.meta.year)+'</p>'+
-     '<p class="reglaref">'+esc(B.meta.dedication||"")+'</p>'+
-     '<div class="rowbtns"><button class="btn" data-nota="1">Nota sobre la Regla</button>'+
+     
+     '<div class="rowbtns"><button class="btn" data-nota="1">Nota sobre la Regla · Créditos</button>'+
      '<button class="btn" data-front="1">Presentación</button></div></div>';
   h+='</div>'; app.innerHTML=h; ctx.textContent="Ajustes";
 }
@@ -394,7 +411,7 @@ document.addEventListener("click", ev=>{
     } else if(ST.remind){ notifyTest(); }
     renderAjustes();
   }
-  else if(d.nota){ showText("Nota sobre la Regla incorporada", B.meta.notaRegla); }
+  else if(d.nota){ showNota(); }
   else if(d.front){ showFront(); }
 });
 function showFront(){
@@ -407,8 +424,27 @@ function showFront(){
       '<div class="eyebrow" style="margin-top:14px">'+esc(m.subtitle)+'</div>'+
       '<h2 style="margin:.1em 0">'+esc(m.title)+'</h2>'+
       '<div class="reglaref">'+esc(m.copyright)+' · '+esc(m.year)+' · '+esc(m.amdg)+'</div>'+
-      '<div class="divider"></div>'+
-      '<p class="meditation" style="text-align:left">'+esc(m.dedication||"")+'</p>'+
+      
+    '</article></div>';
+  window.scrollTo(0,0);
+}
+const AUTOR="Francisco de Paula Requena Paredes";
+const COMPRA="https://amzn.eu/d/06RM5TL8";
+const CORREO="fprequenap@gmail.com";
+function showNota(){
+  app.innerHTML='<div class="view"><div class="navday"><button data-back="ajustes">‹ Ajustes</button>'+
+    '<div class="lbl"></div><span style="width:70px"></span></div>'+
+    '<article class="card"><h2>'+esc(B.meta.notaReglaTitulo||"Nota sobre la Regla incorporada")+'</h2>'+
+    '<div class="meditation">'+B.meta.notaRegla.map(p=>"<p>"+esc(p)+"</p>").join("")+'</div></article>'+
+    '<article class="card"><div class="eyebrow">Créditos</div>'+
+    '<p style="margin:.3em 0"><b>'+esc(B.meta.title)+'</b>. '+esc(B.meta.subtitle)+'.</p>'+
+    '<p style="margin:.3em 0">© '+esc(AUTOR)+', '+esc(B.meta.year)+'.</p>'+
+    '<p class="reglaref">Salterio: Torres Amat, numeración de la Vulgata. Regla de San Benito: ed. Torras y Corominas, Barcelona, 1850.</p>'+
+    '<div class="rowbtns">'+
+      '<a class="btn gold" href="'+COMPRA+'" target="_blank" rel="noopener">Comprar el libro</a>'+
+      '<a class="btn" href="mailto:'+CORREO+'?subject=Pon%20arriba%20los%20ojos%20%E2%80%94%20sugerencia">Enviar sugerencias</a>'+
+    '</div>'+
+    '<p class="reglaref" style="margin-top:10px">Sugerencias: '+esc(CORREO)+'</p>'+
     '</article></div>';
   window.scrollTo(0,0);
 }
